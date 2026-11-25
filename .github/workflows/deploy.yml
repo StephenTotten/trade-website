@@ -18,7 +18,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry_1.outputs.page_url || steps.deployment_retry_2.outputs.page_url || steps.deployment_retry_3.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -32,3 +32,32 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        continue-on-error: true
+      # The Pages artifact can take time to appear in the deploy action's listing.
+      - name: Wait before deployment retry 1
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 10
+      - name: Retry deployment 1
+        id: deployment_retry_1
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: Wait before deployment retry 2
+        if: steps.deployment_retry_1.outcome == 'failure'
+        run: sleep 20
+      - name: Retry deployment 2
+        id: deployment_retry_2
+        if: steps.deployment_retry_1.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: Wait before deployment retry 3
+        if: steps.deployment_retry_2.outcome == 'failure'
+        run: sleep 30
+      - name: Retry deployment 3
+        id: deployment_retry_3
+        if: steps.deployment_retry_2.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: Fail after all deployment retries
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry_1.outcome == 'failure' && steps.deployment_retry_2.outcome == 'failure' && steps.deployment_retry_3.outcome == 'failure'
+        run: exit 1
